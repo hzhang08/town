@@ -82,8 +82,8 @@ let draggedImageType = null;
 // Modify getMousePos to work with touch events as well
 function getMousePos(canvas, evt) {
     const rect = canvas.getBoundingClientRect();
-    const clientX = evt.clientX || evt.touches[0].clientX;
-    const clientY = evt.clientY || evt.touches[0].clientY;
+    const clientX = evt.clientX || (evt.touches && evt.touches[0] ? evt.touches[0].clientX : evt.changedTouches[0].clientX);
+    const clientY = evt.clientY || (evt.touches && evt.touches[0] ? evt.touches[0].clientY : evt.changedTouches[0].clientY);
     return {
         x: clientX - rect.left,
         y: clientY - rect.top
@@ -232,13 +232,37 @@ function drag(e) {
     }
 }
 
-// Add these new functions to handle touch events
+let lastTapTime = 0;
+const doubleTapDelay = 300; // milliseconds
+
+// Modify the handleTouchStart function
 function handleTouchStart(e) {
     e.preventDefault();
     const touch = e.touches[0];
-    touchStartX = touch.clientX;
-    touchStartY = touch.clientY;
-    startDragOrClick(touch);
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTapTime;
+    const mousePos = getMousePos(canvas, touch);
+    const cellId = getCellFromMousePos(mousePos);
+
+    if (tapLength < doubleTapDelay && tapLength > 0) {
+        // Double tap detected
+        if (cellId) handleDoubleClick(cellId);
+    } else {
+        // Single tap - start drag if applicable
+        if (cellId && gridData[cellId] in NextLevel) {
+            isDragging = true;
+            dragStartCell = cellId;
+            draggedImage = cellImages[gridData[cellId]];
+            draggedImageType = gridData[cellId];
+            draggedImagePos = {
+                x: mousePos.x - CELL_SIZE / 2,
+                y: mousePos.y - CELL_SIZE / 2
+            };
+            gridData[cellId] = ImageType.SAND;
+        }
+    }
+
+    lastTapTime = currentTime;
 }
 
 function handleTouchMove(e) {
