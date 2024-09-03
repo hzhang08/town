@@ -29,6 +29,8 @@ backgroundImage.src = 'images/beach.jpeg';
 const cellImages = {};
 
 let isGameWon = false;
+// Add these variables at the top of your file
+let touchStartX, touchStartY;
 
 // Initialize grid data
 const gridData = initializeGridData();
@@ -77,13 +79,17 @@ let draggedImage = null;
 let draggedImagePos = { x: 0, y: 0 };
 let draggedImageType = null;
 
+// Modify getMousePos to work with touch events as well
 function getMousePos(canvas, evt) {
     const rect = canvas.getBoundingClientRect();
+    const clientX = evt.clientX || evt.touches[0].clientX;
+    const clientY = evt.clientY || evt.touches[0].clientY;
     return {
-        x: evt.clientX - rect.left,
-        y: evt.clientY - rect.top
+        x: clientX - rect.left,
+        y: clientY - rect.top
     };
 }
+
 
 function getCellFromMousePos(mousePos) {
     const col = Math.floor((mousePos.x - GRID_X) / CELL_SIZE);
@@ -94,25 +100,29 @@ function getCellFromMousePos(mousePos) {
     return null;
 }
 
-function startDrag(cellId, mousePos) {
-    if (gridData[cellId] in NextLevel) {
-        isDragging = true;
-        dragStartCell = cellId;
-        draggedImage = cellImages[gridData[cellId]];
-        draggedImageType = gridData[cellId];
-        draggedImagePos = {
-            x: mousePos.x - CELL_SIZE / 2,
-            y: mousePos.y - CELL_SIZE / 2
-        };
-        // Temporarily set the cell to sand during dragging
-        gridData[cellId] = ImageType.SAND;
-    }
-}
+// Remove this function
+// function startDrag(cellId, mousePos) {
+//     if (gridData[cellId] in NextLevel) {
+//         isDragging = true;
+//         dragStartCell = cellId;
+//         draggedImage = cellImages[gridData[cellId]];
+//         draggedImageType = gridData[cellId];
+//         draggedImagePos = {
+//             x: mousePos.x - CELL_SIZE / 2,
+//             y: mousePos.y - CELL_SIZE / 2
+//         };
+//         // Temporarily set the cell to sand during dragging
+//         gridData[cellId] = ImageType.SAND;
+//     }
+// }
 
 // Modify the endDrag function to check for a win after a successful move
-function endDrag(endCellId) {
+function endDrag(e) {
     if (isDragging) {
-        if (dragStartCell !== endCellId && gridData[endCellId] === draggedImageType) {
+        const mousePos = getMousePos(canvas, e);
+        const endCellId = getCellFromMousePos(mousePos);
+        
+        if (endCellId && dragStartCell !== endCellId && gridData[endCellId] === draggedImageType) {
             const currentType = gridData[endCellId];
             if (currentType in NextLevel) {
                 // Combine into next level
@@ -124,6 +134,7 @@ function endDrag(endCellId) {
             // Return the item to its original position
             gridData[dragStartCell] = draggedImageType;
         }
+        
         isDragging = false;
         dragStartCell = null;
         draggedImage = null;
@@ -176,22 +187,42 @@ canvas.addEventListener('dblclick', (e) => {
 
 // Modify the existing mousedown event listener to prevent starting a drag on double-click
 let lastClickTime = 0;
-canvas.addEventListener('mousedown', (e) => {
+// Modify the existing event listeners and add touch event listeners
+canvas.addEventListener('mousedown', startDragOrClick);
+canvas.addEventListener('mousemove', drag);
+canvas.addEventListener('mouseup', endDrag);
+
+canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+canvas.addEventListener('touchend', handleTouchEnd);
+
+
+function startDragOrClick(e) {
     const currentTime = new Date().getTime();
     const mousePos = getMousePos(canvas, e);
     const cellId = getCellFromMousePos(mousePos);
     
     if (currentTime - lastClickTime < 300) {
-        // Double-click detected, don't start dragging
+        // Double-click detected
         e.preventDefault();
-    } else if (cellId) {
-        startDrag(cellId, mousePos);
+        if (cellId) handleDoubleClick(cellId);
+    } else if (cellId && gridData[cellId] in NextLevel) {
+        isDragging = true;
+        dragStartCell = cellId;
+        draggedImage = cellImages[gridData[cellId]];
+        draggedImageType = gridData[cellId];
+        draggedImagePos = {
+            x: mousePos.x - CELL_SIZE / 2,
+            y: mousePos.y - CELL_SIZE / 2
+        };
+        gridData[cellId] = ImageType.SAND;
     }
     
     lastClickTime = currentTime;
-});
+}
 
-canvas.addEventListener('mousemove', (e) => {
+// Modify the drag function
+function drag(e) {
     if (isDragging) {
         const mousePos = getMousePos(canvas, e);
         draggedImagePos = {
@@ -199,13 +230,30 @@ canvas.addEventListener('mousemove', (e) => {
             y: mousePos.y - CELL_SIZE / 2
         };
     }
-});
+}
 
-canvas.addEventListener('mouseup', (e) => {
-    const mousePos = getMousePos(canvas, e);
-    const cellId = getCellFromMousePos(mousePos);
-    if (cellId) endDrag(cellId);
-});
+// Add these new functions to handle touch events
+function handleTouchStart(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    startDragOrClick(touch);
+}
+
+function handleTouchMove(e) {
+    e.preventDefault();
+    if (isDragging) {
+        const touch = e.touches[0];
+        drag(touch);
+    }
+}
+
+function handleTouchEnd(e) {
+    e.preventDefault();
+    const touch = e.changedTouches[0];
+    endDrag(touch);
+}
 
 // Modify drawCellImages to show dragging effect
 function drawCellImages() {
