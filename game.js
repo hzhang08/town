@@ -8,6 +8,11 @@ const GRID_ROWS = 9;
 const GRID_COLS = 7;
 const CELL_SIZE = 80;
 
+// Define base grid dimensions
+const BASE_GRID_ROWS = 9;
+const BASE_GRID_COLS = 7;
+const BASE_CELL_SIZE = 80;
+
 // Calculate grid size
 const GRID_WIDTH = CELL_SIZE * GRID_COLS;
 const GRID_HEIGHT = CELL_SIZE * GRID_ROWS;
@@ -34,6 +39,38 @@ let touchStartX, touchStartY;
 
 // Initialize grid data
 const gridData = initializeGridData();
+
+// Get initial dimensions
+let { cellSize, gridWidth, gridHeight, gridX, gridY } = calculateDimensions();
+
+// Function to calculate dimensions based on screen size
+function calculateDimensions() {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    // Calculate the maximum cell size that fits the screen height
+    const maxCellSizeForHeight = Math.floor(screenHeight / BASE_GRID_ROWS);
+    
+    // Calculate the maximum cell size that fits the screen width
+    const maxCellSizeForWidth = Math.floor(screenWidth / BASE_GRID_COLS);
+    
+    // Use the smaller of the two to ensure it fits both dimensions
+    const cellSize = Math.min(maxCellSizeForHeight, maxCellSizeForWidth);
+    
+    // Calculate grid dimensions
+    const gridWidth = cellSize * BASE_GRID_COLS;
+    const gridHeight = cellSize * BASE_GRID_ROWS;
+    
+    // Adjust canvas size
+    canvas.width = screenWidth;  // Set canvas width to screen width
+    canvas.height = gridHeight;
+    
+    // Calculate grid position (centered horizontally within the canvas)
+    const gridX = (canvas.width - gridWidth) / 2;
+    const gridY = 0;  // Grid starts at the top of the canvas
+    
+    return { cellSize, gridWidth, gridHeight, gridX, gridY };
+}
 
 function loadCellImages() {
     Object.values(ImageType).forEach(type => {
@@ -90,11 +127,11 @@ function getMousePos(canvas, evt) {
     };
 }
 
-
+// Update getCellFromMousePos function
 function getCellFromMousePos(mousePos) {
-    const col = Math.floor((mousePos.x - GRID_X) / CELL_SIZE);
-    const row = Math.floor((mousePos.y - GRID_Y) / CELL_SIZE);
-    if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) {
+    const col = Math.floor((mousePos.x - gridX) / cellSize);
+    const row = Math.floor((mousePos.y - gridY) / cellSize);
+    if (row >= 0 && row < BASE_GRID_ROWS && col >= 0 && col < BASE_GRID_COLS) {
         return getCellId(row, col);
     }
     return null;
@@ -178,6 +215,17 @@ function showWinPopover() {
     document.body.appendChild(popover);
 }
 
+// Modify the canvas style to position it correctly
+function updateCanvasPosition() {
+    canvas.style.position = 'absolute';
+    canvas.style.left = '0';  // Align canvas to the left edge of the screen
+    canvas.style.bottom = '0';  // Align canvas to the bottom of the screen
+}
+
+// Call this function after calculating dimensions and on resize
+updateCanvasPosition();
+window.addEventListener('resize', updateCanvasPosition);
+
 // Modify the double-click event listener
 canvas.addEventListener('dblclick', (e) => {
     const mousePos = getMousePos(canvas, e);
@@ -212,8 +260,8 @@ function startDragOrClick(e) {
         draggedImage = cellImages[gridData[cellId]];
         draggedImageType = gridData[cellId];
         draggedImagePos = {
-            x: mousePos.x - CELL_SIZE / 2,
-            y: mousePos.y - CELL_SIZE / 2
+            x: mousePos.x - cellSize / 2,
+            y: mousePos.y - cellSize / 2
         };
         gridData[cellId] = ImageType.SAND;
     }
@@ -221,13 +269,13 @@ function startDragOrClick(e) {
     lastClickTime = currentTime;
 }
 
-// Modify the drag function
+// Update drag function
 function drag(e) {
     if (isDragging) {
         const mousePos = getMousePos(canvas, e);
         draggedImagePos = {
-            x: mousePos.x - CELL_SIZE / 2,
-            y: mousePos.y - CELL_SIZE / 2
+            x: mousePos.x - cellSize / 2,
+            y: mousePos.y - cellSize / 2
         };
     }
 }
@@ -279,20 +327,20 @@ function handleTouchEnd(e) {
     endDrag(touch);
 }
 
-// Modify drawCellImages to show dragging effect
+// Update drawing functions to use gridX
 function drawCellImages() {
-    for (let row = 0; row < GRID_ROWS; row++) {
-        for (let col = 0; col < GRID_COLS; col++) {
+    for (let row = 0; row < BASE_GRID_ROWS; row++) {
+        for (let col = 0; col < BASE_GRID_COLS; col++) {
             const cellId = getCellId(row, col);
             let imageType = gridData[cellId];
             const image = cellImages[imageType];
             if (image && image.complete && image.naturalWidth !== 0) {
                 ctx.drawImage(
                     image,
-                    GRID_X + col * CELL_SIZE,
-                    GRID_Y + row * CELL_SIZE,
-                    CELL_SIZE,
-                    CELL_SIZE
+                    gridX + col * cellSize,
+                    gridY + row * cellSize,
+                    cellSize,
+                    cellSize
                 );
             } else {
                 console.warn(`Image not ready or broken for cell ${cellId}, type ${imageType}`);
@@ -306,8 +354,8 @@ function drawCellImages() {
             draggedImage,
             draggedImagePos.x,
             draggedImagePos.y,
-            CELL_SIZE,
-            CELL_SIZE
+            cellSize,
+            cellSize
         );
     }
 }
@@ -367,18 +415,18 @@ function drawGrid() {
     ctx.lineWidth = 1;
 
     // Draw vertical lines
-    for (let x = 0; x <= GRID_WIDTH; x += CELL_SIZE) {
+    for (let x = 0; x <= gridWidth; x += cellSize) {
         ctx.beginPath();
-        ctx.moveTo(GRID_X + x, GRID_Y);
-        ctx.lineTo(GRID_X + x, GRID_Y + GRID_HEIGHT);
+        ctx.moveTo(gridX + x, gridY);
+        ctx.lineTo(gridX + x, gridY + gridHeight);
         ctx.stroke();
     }
 
     // Draw horizontal lines
-    for (let y = 0; y <= GRID_HEIGHT; y += CELL_SIZE) {
+    for (let y = 0; y <= gridHeight; y += cellSize) {
         ctx.beginPath();
-        ctx.moveTo(GRID_X, GRID_Y + y);
-        ctx.lineTo(GRID_X + GRID_WIDTH, GRID_Y + y);
+        ctx.moveTo(gridX, gridY + y);
+        ctx.lineTo(gridX + gridWidth, gridY + y);
         ctx.stroke();
     }
 }
